@@ -1,160 +1,142 @@
 package io.github.shiokohi.tenthousand;
 
-import io.github.shiokohi.tenthousand.util.SystemUiHider;
-
-import android.annotation.TargetApi;
-import android.app.Activity;
-import android.os.Build;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.os.Handler;
-import android.view.MotionEvent;
+import android.support.v7.app.AppCompatActivity;
 import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.TextView;
+import android.widget.Toast;
+
+public class MainActivity extends AppCompatActivity {
 
 
-/**
- * An example full-screen activity that shows and hides the system UI (i.e.
- * status bar and navigation/system bar) with user interaction.
- *
- * @see SystemUiHider
- */
-public class MainActivity extends Activity {
-    /**
-     * Whether or not the system UI should be auto-hidden after
-     * {@link #AUTO_HIDE_DELAY_MILLIS} milliseconds.
-     */
-    private static final boolean AUTO_HIDE = true;
+    //TODO: Verschiedene Projekte auswählen
+    //TODO: Zeiten rückwirkend abschätzen (jede woche eine stunde geübt seit...)
+    //TODO: Preferences API nutzen?
+    //TODO: Gesamtzeit getrennt in Stunden und Minuten darstellen
+    //TODO: Statt Texteingabe vielleicht Dropdown Liste zur Auswahl einer Zeit?
+    //TODO: Angabe von Prozent der Gesamtzeit auch grafisch
 
-    /**
-     * If {@link #AUTO_HIDE} is set, the number of milliseconds to wait after
-     * user interaction before hiding the system UI.
-     */
-    private static final int AUTO_HIDE_DELAY_MILLIS = 3000;
+    //Const
+    private static final String MSG_NO_INPUT = "Bitte Felder ausfüllen";
 
-    /**
-     * If set, will toggle the system UI visibility upon interaction. Otherwise,
-     * will show the system UI visibility upon interaction.
-     */
-    private static final boolean TOGGLE_ON_CLICK = true;
+    //TextView
+    private TextView txtView_top = null;
+    private TextView txt_bottom = null;
+    private TextView txt_gesamt = null;
 
-    /**
-     * The flags to pass to {@link SystemUiHider#getInstance}.
-     */
-    private static final int HIDER_FLAGS = SystemUiHider.FLAG_HIDE_NAVIGATION;
+    //EditText
+    private EditText txt_eingabe = null;
 
-    /**
-     * The instance of the {@link SystemUiHider} for this activity.
-     */
-    private SystemUiHider mSystemUiHider;
+    //Button
+    private Button cmd_eingabe = null;
+    private Button cmd_daten_loeschen = null;
+
+    private Integer time_until_now = 0;
+    private Integer time_total = 0;
+    private Integer saved_time = 0;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main_layout);
 
-        setContentView(R.layout.activity_main);
+        this.txtView_top = (TextView) findViewById(R.id.txtView_top);
+        this.txt_bottom = (TextView) findViewById(R.id.txt_bottom);
+        this.txt_gesamt = (TextView) findViewById(R.id.txt_gesamt);
+        this.txt_eingabe = (EditText) findViewById(R.id.txt_eingabe);
+        this.cmd_eingabe = (Button) findViewById(R.id.cmd_eingabe);
+        this.cmd_daten_loeschen = (Button) findViewById(R.id.cmd_deleteAll);
 
-        final View controlsView = findViewById(R.id.fullscreen_content_controls);
-        final View contentView = findViewById(R.id.fullscreen_content);
 
-        // Set up an instance of SystemUiHider to control the system UI for
-        // this activity.
-        mSystemUiHider = SystemUiHider.getInstance(this, contentView, HIDER_FLAGS);
-        mSystemUiHider.setup();
-        mSystemUiHider
-                .setOnVisibilityChangeListener(new SystemUiHider.OnVisibilityChangeListener() {
-                    // Cached values.
-                    int mControlsHeight;
-                    int mShortAnimTime;
+        //Gespeicherte Daten laden
+        Context context = this;
+        SharedPreferences sharedPref = getPreferences(Context.MODE_PRIVATE);
+        saved_time = sharedPref.getInt("time", 0);
+        //TEst der Datenübername per Toast
+        // Toast.makeText(this, "Aus dem Speicher geladene Zeit: "+saved_time, Toast.LENGTH_SHORT).show();
+        time_total = saved_time;
+        //  Toast.makeText(this, "Time Total: "+time_total, Toast.LENGTH_SHORT).show();
 
-                    @Override
-                    @TargetApi(Build.VERSION_CODES.HONEYCOMB_MR2)
-                    public void onVisibilityChange(boolean visible) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR2) {
-                            // If the ViewPropertyAnimator API is available
-                            // (Honeycomb MR2 and later), use it to animate the
-                            // in-layout UI controls at the bottom of the
-                            // screen.
-                            if (mControlsHeight == 0) {
-                                mControlsHeight = controlsView.getHeight();
-                            }
-                            if (mShortAnimTime == 0) {
-                                mShortAnimTime = getResources().getInteger(
-                                        android.R.integer.config_shortAnimTime);
-                            }
-                            controlsView.animate()
-                                    .translationY(visible ? 0 : mControlsHeight)
-                                    .setDuration(mShortAnimTime);
-                        } else {
-                            // If the ViewPropertyAnimator APIs aren't
-                            // available, simply show or hide the in-layout UI
-                            // controls.
-                            controlsView.setVisibility(visible ? View.VISIBLE : View.GONE);
-                        }
+        txt_gesamt.setText(Integer.toString(time_total));
 
-                        if (visible && AUTO_HIDE) {
-                            // Schedule a hide().
-                            delayedHide(AUTO_HIDE_DELAY_MILLIS);
-                        }
-                    }
-                });
-
-        // Set up the user interaction to manually show or hide the system UI.
-        contentView.setOnClickListener(new View.OnClickListener() {
+        //Listener des Eingabebuttons
+        cmd_eingabe.setOnClickListener(new View.OnClickListener(){
             @Override
-            public void onClick(View view) {
-                if (TOGGLE_ON_CLICK) {
-                    mSystemUiHider.toggle();
-                } else {
-                    mSystemUiHider.show();
+            public void onClick(View v){
+
+                //Check ob der User etwas eingegeben hat.
+                if (checkUserInput()) {
+                    time_until_now = Integer.parseInt(txt_eingabe.getText().toString());
+                    time_total += time_until_now;
+                    txt_gesamt.setText(Integer.toString(time_total));
+                    // Toast.makeText(v.getContext(), "Erfolgreich übernommen. Zeit bis jetzt: "+time_total, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(v.getContext(), "Du übst schon "+ calculateTotalPercentage(time_total) + " Prozent.", Toast.LENGTH_SHORT).show();
                 }
+                else{
+                    Toast.makeText(v.getContext(), "Bitte einen Wert eingeben", Toast.LENGTH_SHORT).show();
+                }
+
             }
         });
 
-        // Upon interacting with UI controls, delay any scheduled hide()
-        // operations to prevent the jarring behavior of controls going away
-        // while interacting with the UI.
-        findViewById(R.id.dummy_button).setOnTouchListener(mDelayHideTouchListener);
-    }
-
-    @Override
-    protected void onPostCreate(Bundle savedInstanceState) {
-        super.onPostCreate(savedInstanceState);
-
-        // Trigger the initial hide() shortly after the activity has been
-        // created, to briefly hint to the user that UI controls
-        // are available.
-        delayedHide(100);
-    }
-
-
-    /**
-     * Touch listener to use for in-layout UI controls to delay hiding the
-     * system UI. This is to prevent the jarring behavior of controls going away
-     * while interacting with activity UI.
-     */
-    View.OnTouchListener mDelayHideTouchListener = new View.OnTouchListener() {
-        @Override
-        public boolean onTouch(View view, MotionEvent motionEvent) {
-            if (AUTO_HIDE) {
-                delayedHide(AUTO_HIDE_DELAY_MILLIS);
+        //Dieser Button löscht einfach nur die Daten
+        cmd_daten_loeschen.setOnClickListener(new View.OnClickListener(){
+            @Override
+            public void onClick(View v){
+                time_total = 0;
+                txt_gesamt.setText(Integer.toString(time_total));
             }
-            return false;
-        }
-    };
+        });
+    }
+    @Override
+    protected void onStop(){
+        super.onStop();
+        //Hier werden die Daten in den permanenten Speicher der Preferences geschrieben
+        SharedPreferences sharedPref = getPreferences(Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPref.edit();
+        editor.putInt("time", time_total);
 
-    Handler mHideHandler = new Handler();
-    Runnable mHideRunnable = new Runnable() {
-        @Override
-        public void run() {
-            mSystemUiHider.hide();
-        }
-    };
+        // Commit the edits!
+        editor.commit();
+        //Toast.makeText(this, "In den Speicher geschriebene: "+time_total, Toast.LENGTH_SHORT).show();
+    }
 
-    /**
-     * Schedules a call to hide() in [delay] milliseconds, canceling any
-     * previously scheduled calls.
-     */
-    private void delayedHide(int delayMillis) {
-        mHideHandler.removeCallbacks(mHideRunnable);
-        mHideHandler.postDelayed(mHideRunnable, delayMillis);
+
+
+   /* // Validierung des Inputs
+    private boolean isValidNumber(String number) {
+        if (number != null) {
+            return true;
+        }
+        return false;
+    }*/
+
+    //Validierung des Inputs
+    private boolean checkUserInput(){
+        //Initialisieren
+        boolean valid = true;
+        String strInput = txt_eingabe.getText().toString();
+        //Toast.makeText(this, "Hier in checkUserInput", Toast.LENGTH_SHORT).show();
+        //Überprüfen
+        if (strInput.equalsIgnoreCase("")){
+            valid = false;
+            //Toast.makeText(this, "Input nicht gültig", Toast.LENGTH_SHORT).show();
+        }
+
+        return valid;
+    }
+
+    //Hier wird der Prozentsatz der 10k h berechnet
+    //TODO: QS: Hier wird immer .0 als Nachkommastelle ausgegeben?
+    //TODO: App kann abstürzen bei zu hohen Werten (double? float?)
+    public static double calculateTotalPercentage(int a ){
+        double percentage;
+        percentage = a/10000/60;
+        return percentage;
     }
 }
